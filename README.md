@@ -1,66 +1,62 @@
-git init
-git add -A
-git commit -m 'first blood'
-git remote add origin git@github.com:Ao-Lee/AveragePrecision.git
-git push -u origin master
+## Some important concepts
+### Intersection over Union (IoU) 
+Intersection over Union is simply a ratio. In the numerator we compute the area of overlap between the predicted bounding box and the ground-truth bounding box. The denominator is the area of union, or more simply, the area encompassed by both the predicted bounding box and the ground-truth bounding box.
+![Alt text](https://github.com/Ao-Lee/AveragePrecision/raw/master/figures/iou.jpg)
+In the above figure I have included examples of good and bad IoU scores. As you can see, predicted bounding boxes that heavily overlap with the ground-truth bounding boxes have higher scores than those with less overlap. This makes Intersection over Union an excellent metric for evaluating custom object detectors.
+![Alt text](https://github.com/Ao-Lee/AveragePrecision/raw/master/figures/different_iou.jpg)
+
+### TP (true positive):
+Correctly predicted positive examples. In the object detection context, it means a correct detection. The IOU between the detected box and any ground truth is greater than the threshold (in the PASCAL VOC Challenge, this threshold is set to 0.5. In this library, APIs are provided to change this threshold)
+
+### FP (false positive):
+Wrongly predicted negative examples. In the object detection context, it means a wrong detection. The IOU between the detected box and all ground truth bounding boxes is less than the threshold.
+
+### FN (false negative): 
+Wrongly predicted positive examples. In the object detection context, it means a ground truth object is not detected
+
+### TN (true negative):
+Correctly predicted negative examples. In the object detection context, it means non-object bounding boxes which are not detected by the model. Since there are infinite possible non-object bounding boxes in an image, TN is never used in object detection.
 
 
 
-![Alt text](https://github.com/Ao-Lee/Vgg-Face-Fine-tune/raw/master/TestCases/imgs/detection/_01.jpg)
+### Precision 
+Precision = TP / (TP + FP) = TP / number of detected bounding boxes
 
+### Recall
+Recall = TP / (TP + FN) = TP / number of ground truth bounding boxes
 
+## How is Average Precision (AP) computed?
+Computing AP for a particular object detection pipeline is essentially a three step process:
+1. Compute all the precisions which the confidence of the model varies.
+2. Compute all the recalls which the confidence of the model varies.
+3. Draw a precision-recall curve for all precisions and recalls, AP is the area under this Precision-Recall curve. In the implementation, an Interpolated precision-recall curve is used, as shown in the figure.
+![Alt text](https://github.com/Ao-Lee/AveragePrecision/raw/master/figures/precision_recall_curve.jpg)
 
-
-# what content does this project contain
-1. face detection and alignment
-![Alt text](https://github.com/Ao-Lee/Vgg-Face-Fine-tune/raw/master/TestCases/imgs/detection/_01.jpg)
-
-2. face verification predictions
-![Alt text](https://github.com/Ao-Lee/Vgg-Face-Fine-tune/raw/master/TestCases/imgs/verification/example.png)
-
-3. fine tune a pre-trained model with your customized dataset
-
-# how it works
-the network used in this project is vgg16 and it was pre-trained by Oxford to classify 2622 identities. Check [this paper](https://www.robots.ox.ac.uk/~vgg/publications/2015/Parkhi15/parkhi15.pdf) for more details. Since their model was trained for a classification purpose, it must be
-tuned to fit verification tasks. A triplet loss is used in this project just as what the paper describes. For more details about triplet loss, check [this](https://arxiv.org/abs/1503.03832) Google facenet paper
-
-# how to install
-1. install anaconda for python 3
-2. install tensorflow
-3. install keras (theno backend is not tested)
-4. install other python packages such as tqdm
-
-# how to perform face detection and alignment
-run TestCases\test_align_database.py
-
-# Datasets used 
-different face datasets were used in this project, they are
-LFW dataset (http://vis-www.cs.umass.edu/lfw/)
-AR dataset (http://www2.ece.ohio-state.edu/~aleix/ARdatabase.html)
-CAS-PEAL dataset (http://www.jdl.ac.cn/peal/)
-
-# how to perform verification
-any face dataset can be used, since lfw data set is easy to download and prepare, we use lfw dataset for illustration
-1. download lfw dataset. Since we have our own align implementation. it is recommended to download data without alignment. the quick link is [here](http://vis-www.cs.umass.edu/lfw/lfw.tgz)
-2. align the lfw database. Open TestCases\test_align_database.py and edit the following two lines
+## APIs
+in order to compute average protection, you need to provoide three piece of information, the ground truth Information, the predicton information and the total number of ground truth objects.
+### Ground truth Information
+a dictionary of files, representing the ground truth information. Each dictionary contains an image id and ground truth bounding boxes of that image, for example:
+```python
+{'1.jpg':array([[95, 95, 188, 176]]), '2.jpg': array([[21, 94, 104, 157], [ 9, 88, 56, 178]]}
+```                
+### Prediction Information
+a list, each element in the list representing a prediction, for example:
+```python
+[
+	{'bbox': array([ 83, 73, 156, 101]), 'confidence': 0.53, 'file_id': '0969.jpg'},
+	{'bbox': array([ 30, 71, 122, 98]), 'confidence': 0.83, 'file_id': '1440.jpg'}
+]
 ```
-source = 'imgs\\align_test\\origin'
-target = 'imgs\\align_test\\aligned'
-```
-run test_align_database.py after running, you should get a folder of aligned images.
+### Total number of ground truth objects
+The total number of ground truth objects must be provided to correctly compute recall, as discussed above.
 
-3. download the model:
-	* todo: provide download link
-4. open cfg.py and modify the '_dir_models' variable, it changes the absolute path to the model
-5. open TestCases\test_verification_on_general_dataset.py and change dir_image to be the root directory of aligned images
-6.run test_verification_on_general_dataset.py
+## How to run the example?
+Run example.py, this is a complete example. Note that it is able to adjust the IOU threshold.
 
-# how to train the network
-- we still use lfw dataset to illustrate the process, in practice, any face dataset can be used
-- note that it is recommended to use a GPU to train. Training on a cpu machine could be very slow.
+## Common questions:
+* __What if many detections have high IOUs to the same ground truth object? Are those detections all considered as true positive?__
+No. In this case, only one detection is counted as TP, other detections are false positives
 
-1. open train.py and modify this line:
-	reader_LFW = LFWReader(dir_images='E:\\DM\\Faces\\Data\\LFW\\aligned')
-	set the directory to be the absolute path of aligned lfw images
-2. run the train.py code
+* __I have a multiclass detection scenario, and how to compute MAP among all classes?__
+provoide the ground truth, the predicton and the total number of ground truth objects for each paticular class, compute AP for each class, and average the results.
 
